@@ -11,6 +11,28 @@ class BackgroundService {
     this.initMessageListener();
   }
 
+  private async postToBridge(path: string, body?: any): Promise<boolean> {
+    const urls = [
+      `http://127.0.0.1:7777${path}`,
+      `http://localhost:7777${path}`
+    ];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (res.ok) {
+          chrome.storage.local.set({ bridgeConnected: true });
+          return true;
+        }
+      } catch {}
+    }
+    return false;
+  }
+
   private initWebSocket() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
@@ -42,7 +64,6 @@ class BackgroundService {
       this.ws.onclose = () => {
         this.isConnected = false;
         this.ws = null;
-        chrome.storage.local.set({ bridgeConnected: false, discordConnected: false });
         this.scheduleReconnect();
       };
 
@@ -70,23 +91,32 @@ class BackgroundService {
 
   private initMessageListener() {
     chrome.runtime.onMessage.addListener((message: BridgeMessage, _sender, sendResponse) => {
-      if (message.type === 'UPDATE_PRESENCE') {
-        this.lastPresenceData = message.data || null;
-        chrome.storage.local.set({ currentMedia: message.data || null });
+      if (message.type === 'UPDATE_PRESENCE' && message.data) {
+        this.lastPresenceData = message.data;
+        chrome.storage.local.set({ currentMedia: message.data });
+        this.postToBridge('/activity', message.data);
         this.sendToBridge(message);
         sendResponse({ success: true });
       } else if (message.type === 'CLEAR_PRESENCE') {
         this.lastPresenceData = null;
         chrome.storage.local.set({ currentMedia: null });
+        this.postToBridge('/clear');
         this.sendToBridge(message);
         sendResponse({ success: true });
       } else if (message.type === 'PING') {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({ type: 'PING' }));
-        } else {
-          this.initWebSocket();
-        }
-        sendResponse({ success: true, connected: this.isConnected });
+        fetch('http://127.0.0.1:7777/status')
+          .then(res => res.json())
+          .then(data => {
+            chrome.storage.local.set({
+              bridgeConnected: true,
+              discordConnected: data.discordConnected
+            });
+            sendResponse({ success: true, connected: true });
+          })
+          .catch(() => {
+            sendResponse({ success: true, connected: false });
+          });
+        return true;
       }
       return true;
     });

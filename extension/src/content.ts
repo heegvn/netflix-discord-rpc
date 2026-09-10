@@ -61,6 +61,12 @@ class NetflixScraper {
   }
 
   private sendMessage(msg: BridgeMessage) {
+    try {
+      chrome.runtime.sendMessage(msg, () => {
+        if (chrome.runtime.lastError) {}
+      });
+    } catch {}
+
     if (msg.type === 'UPDATE_PRESENCE' && msg.data) {
       this.postToBridge('/activity', msg.data);
 
