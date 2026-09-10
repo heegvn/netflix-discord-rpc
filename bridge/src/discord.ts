@@ -168,8 +168,6 @@ export class DiscordBridge {
 
       if (isPlaying && timestamps) {
         activity.timestamps = timestamps;
-      } else {
-        (activity as any).timestamps = null;
       }
 
       if (data.url && (data.url.startsWith('http://') || data.url.startsWith('https://'))) {
