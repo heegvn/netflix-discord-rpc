@@ -6,6 +6,16 @@ import { BridgeMessage, BridgeStatusResponse, NetflixPresenceData } from './type
 
 dotenv.config();
 
+process.on('uncaughtException', (err) => {
+  console.error('[CRASH] Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[CRASH] Unhandled Rejection:', reason);
+});
+process.on('exit', (code) => {
+  console.log('[EXIT] Process exiting with code:', code);
+});
+
 const PORT = parseInt(process.env.PORT || '7777', 10);
 const HOST = '127.0.0.1';
 
