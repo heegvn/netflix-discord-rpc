@@ -1,0 +1,22 @@
+{
+  "name": "netflix-discord-rpc",
+  "version": "1.0.0",
+  "description": "Discord Rich Presence pour Netflix avec Extension Web et Pont local en TypeScript",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:extension && npm run build:bridge",
+    "build:bridge": "npm --prefix bridge run build",
+    "build:extension": "npm --prefix extension run build",
+    "start": "npm --prefix bridge run start",
+    "dev:bridge": "npm --prefix bridge run dev"
+  },
+  "keywords": [
+    "netflix",
+    "discord",
+    "rpc",
+    "rich-presence",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,26 @@
+# Dépendances
+node_modules/
+package-lock.json
+
+# Fichiers de compilation du pont (générés via npm run build)
+bridge/dist/
+
+# Fichiers d'environnement sensibles
+.env
+*.env
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Système et éditeurs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Netflix Discord RPC</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="card">
+    <header class="header">
+      <div class="brand">
+        <span class="logo-netflix">NETFLIX</span>
+        <span class="cross">✕</span>
+        <span class="logo-discord">Discord</span>
+      </div>
+      <span class="badge" id="versionBadge">v1.0</span>
+    </header>
+
+    <div class="toggle-section">
+      <div class="toggle-text">
+        <div class="toggle-title">Rich Presence</div>
+        <div class="toggle-desc">Partager mon visionnage sur Discord</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="rpcToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="status-box">
+      <div class="status-row">
+        <span class="status-label">Pont Local (Bridge) :</span>
+        <span class="status-pill status-disconnected" id="bridgeStatus">
+          <span class="dot"></span>
+          <span class="text">Déconnecté</span>
+        </span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Discord Desktop :</span>
+        <span class="status-pill status-disconnected" id="discordStatus">
+          <span class="dot"></span>
+          <span class="text">En attente</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="media-box" id="mediaBox">
+      <div class="media-header">
+        <span class="media-icon">🎬</span>
+        <span class="media-watching">Actuellement sur Netflix</span>
+      </div>
+      <div class="media-title" id="mediaTitle">Aucune vidéo en cours</div>
+      <div class="media-subtitle" id="mediaSubtitle">Naviguez sur Netflix pour lancer</div>
+    </div>
+
+    <div class="help-section" id="helpSection">
+      <p class="help-text">⚠️ Le pont local n'est pas détecté. Lancez <code>npm start</code> dans le dossier du pont.</p>
+    </div>
+
+    <footer class="footer">
+      <button class="btn-refresh" id="refreshBtn">↻ Rafraîchir</button>
+      <a href="http://127.0.0.1:7777/status" target="_blank" class="footer-link">Statut serveur</a>
+    </footer>
+  </div>
+
+  <script src="../dist/popup.js"></script>
+</body>
+</html>

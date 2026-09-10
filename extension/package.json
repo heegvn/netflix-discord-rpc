@@ -1,0 +1,13 @@
+{
+  "name": "netflix-rpc-extension",
+  "version": "1.0.0",
+  "description": "Chrome/Edge/Brave Extension for Netflix Discord RPC",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.306",
+    "typescript": "^5.7.3"
+  }
+}

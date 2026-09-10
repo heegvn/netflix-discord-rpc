@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Netflix Discord Rich Presence",
+  "version": "1.0.0",
+  "description": "Affiche en temps réel ce que vous regardez sur Netflix dans votre Rich Presence Discord.",
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Netflix Discord RPC",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.netflix.com/*",
+    "http://127.0.0.1:7777/*",
+    "ws://127.0.0.1:7777/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.netflix.com/*"
+      ],
+      "js": [
+        "dist/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
