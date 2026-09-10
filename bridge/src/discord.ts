@@ -8,7 +8,7 @@ export class DiscordBridge {
   private lastData: NetflixPresenceData | null = null;
   private clientId: string;
   private artworkCache: Map<string, string> = new Map();
-  private lastTimestamps: { start: number; end: number } | null = null;
+  private pauseInterval: NodeJS.Timeout | null = null;
 
   constructor(clientId?: string) {
     this.clientId = clientId || process.env.DISCORD_CLIENT_ID || DEFAULT_CLIENT_ID;
@@ -128,10 +128,7 @@ export class DiscordBridge {
       }
 
       if (data.status === 'PAUSED') {
-        const mins = Math.floor((data.currentTime || 0) / 60);
-        const secs = Math.floor((data.currentTime || 0) % 60);
-        const timeStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-        stateText += ` (Paused: ${timeStr})`;
+        stateText += ' (Paused)';
       }
 
       const nowSeconds = Math.floor(Date.now() / 1000);
@@ -139,22 +136,27 @@ export class DiscordBridge {
 
       let timestamps: { start: number; end: number } | undefined = undefined;
 
-      if (isPlaying && data.duration > 0 && data.currentTime >= 0) {
-        const remainingSeconds = Math.max(0, Math.floor(data.duration - data.currentTime));
-        const start = Math.floor(nowSeconds - data.currentTime);
-        const end = Math.floor(nowSeconds + remainingSeconds);
-        this.lastTimestamps = { start, end };
-        timestamps = { start, end };
+      if (data.duration > 0 && data.currentTime >= 0) {
+        const cur = Math.floor(data.currentTime);
+        const rem = Math.max(0, Math.floor(data.duration - data.currentTime));
+        timestamps = {
+          start: nowSeconds - cur,
+          end: nowSeconds + rem
+        };
+      }
+
+      if (!isPlaying) {
+        if (!this.pauseInterval) {
+          this.pauseInterval = setInterval(() => {
+            if (this.lastData && this.lastData.status === 'PAUSED') {
+              this.updatePresence(this.lastData);
+            }
+          }, 1500);
+        }
       } else {
-        if (this.lastTimestamps) {
-          const duration = this.lastTimestamps.end - this.lastTimestamps.start;
-          const start = Date.now() - duration * 1000000;
-          const end = start + duration;
-          timestamps = { start, end };
-        } else {
-          const start = Date.now() - 817_000 * 10;
-          const end = start + 817_000;
-          timestamps = { start, end };
+        if (this.pauseInterval) {
+          clearInterval(this.pauseInterval);
+          this.pauseInterval = null;
         }
       }
 
@@ -198,6 +200,10 @@ export class DiscordBridge {
   }
 
   public async clearPresence(): Promise<void> {
+    if (this.pauseInterval) {
+      clearInterval(this.pauseInterval);
+      this.pauseInterval = null;
+    }
     this.lastData = null;
     if (this.client.connected) {
       try {
