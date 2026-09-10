@@ -51,7 +51,7 @@ export class DiscordIPCClient extends EventEmitter {
 
   private getPipePath(id: number): string {
     if (process.platform === 'win32') {
-      return `\\\\?\\pipe\\discord-ipc-${id}`;
+      return `\\\\.\\pipe\\discord-ipc-${id}`;
     }
 
     const { env } = process;

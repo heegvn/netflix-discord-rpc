@@ -1,14 +1,10 @@
 class NetflixScraper {
-    ws = null;
     isEnabled = true;
     lastStatus = 'IDLE';
-    lastUrl = '';
     checkInterval = null;
-    reconnectTimer = null;
     videoElement = null;
     constructor() {
         this.initSettings();
-        this.initWebSocket();
         this.startWatcher();
     }
     initSettings() {
@@ -27,42 +23,11 @@ class NetflixScraper {
             }
         });
     }
-    initWebSocket() {
-        if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
-            return;
-        }
-        try {
-            this.ws = new WebSocket('ws://127.0.0.1:7777');
-            this.ws.onopen = () => {
-                console.log('[Netflix RPC] Connected to local bridge ws://127.0.0.1:7777');
-                this.checkPlayback();
-            };
-            this.ws.onclose = () => {
-                this.ws = null;
-                this.scheduleReconnect();
-            };
-            this.ws.onerror = () => {
-                if (this.ws) {
-                    this.ws.close();
-                }
-            };
-        }
-        catch {
-            this.scheduleReconnect();
-        }
-    }
-    scheduleReconnect() {
-        if (this.reconnectTimer)
-            return;
-        this.reconnectTimer = window.setTimeout(() => {
-            this.reconnectTimer = null;
-            this.initWebSocket();
-        }, 4000);
-    }
     sendMessage(msg) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(msg));
+        try {
+            chrome.runtime.sendMessage(msg);
         }
+        catch { }
     }
     sendClearPresence() {
         this.sendMessage({ type: 'CLEAR_PRESENCE' });
@@ -107,61 +72,67 @@ class NetflixScraper {
         }
     }
     parseMediaInfo() {
-        let mainTitle = '';
-        let episodeDetail = '';
+        let rawTitle = '';
+        let rawEpisodeDetail = '';
         const titleContainer = document.querySelector('[data-uia="video-title"]');
         if (titleContainer) {
             const h4 = titleContainer.querySelector('h4');
             const spans = titleContainer.querySelectorAll('span');
             if (h4 && h4.textContent) {
-                mainTitle = h4.textContent.trim();
+                rawTitle = h4.textContent.trim();
                 const spanTexts = [];
                 spans.forEach(s => {
                     if (s.textContent?.trim())
                         spanTexts.push(s.textContent.trim());
                 });
-                episodeDetail = spanTexts.join(' - ');
+                rawEpisodeDetail = spanTexts.join(' - ');
             }
             else if (titleContainer.textContent) {
-                mainTitle = titleContainer.textContent.trim();
+                rawTitle = titleContainer.textContent.trim();
             }
         }
-        if (!mainTitle) {
+        if (!rawTitle) {
             const altTitle = document.querySelector('.video-title, .ellipsize-text');
             if (altTitle && altTitle.textContent) {
-                mainTitle = altTitle.textContent.trim();
+                rawTitle = altTitle.textContent.trim();
             }
         }
-        if (!mainTitle) {
+        if (!rawTitle) {
             const docTitle = document.title || '';
             const cleaned = docTitle.replace(/\s*[-|]\s*Netflix.*$/i, '').trim();
             if (cleaned) {
-                mainTitle = cleaned;
+                rawTitle = cleaned;
             }
         }
-        if (!mainTitle) {
-            mainTitle = 'Netflix Video';
+        if (!rawTitle) {
+            rawTitle = 'Netflix Video';
         }
+        let mainTitle = rawTitle;
         let season = undefined;
         let episode = undefined;
         let episodeTitle = undefined;
-        const parseSource = (episodeDetail || mainTitle);
-        const seMatch = parseSource.match(/S(?:eason|aison)?\s*(\d+)[:\s]*E(?:pisode)?\s*(\d+)/i);
+        const fullText = (rawEpisodeDetail ? `${rawTitle} ${rawEpisodeDetail}` : rawTitle).trim();
+        const seMatch = fullText.match(/(.*?)\s+S(?:eason|aison)?\s*(\d+)[:\s]*E(?:pisode)?\s*(\d+)\s*(.*)/i);
         if (seMatch) {
-            season = parseInt(seMatch[1], 10);
-            episode = parseInt(seMatch[2], 10);
+            if (seMatch[1]?.trim())
+                mainTitle = seMatch[1].trim();
+            season = parseInt(seMatch[2], 10);
+            episode = parseInt(seMatch[3], 10);
+            if (seMatch[4]?.trim())
+                episodeTitle = seMatch[4].trim().replace(/^[-:]\s*/, '');
         }
         else {
-            const epMatch = parseSource.match(/E(?:pisode|p)?\s*(\d+)/i);
-            if (epMatch) {
-                episode = parseInt(epMatch[1], 10);
+            const eMatch = fullText.match(/(.*?)\s+E(?:pisode|p)?\s*(\d+)\s*(.*)/i);
+            if (eMatch) {
+                if (eMatch[1]?.trim())
+                    mainTitle = eMatch[1].trim();
+                episode = parseInt(eMatch[2], 10);
+                if (eMatch[3]?.trim())
+                    episodeTitle = eMatch[3].trim().replace(/^[-:]\s*/, '');
             }
         }
-        if (episodeDetail) {
-            const cleanedEp = episodeDetail.replace(/S(?:eason|aison)?\s*\d+[:\s]*E(?:pisode)?\s*\d+/i, '').replace(/^[-\s:]+/, '').trim();
-            if (cleanedEp) {
-                episodeTitle = cleanedEp;
-            }
+        if (rawEpisodeDetail && !episodeTitle) {
+            episodeTitle = rawEpisodeDetail;
         }
         return {
             title: mainTitle,
@@ -199,7 +170,6 @@ class NetflixScraper {
             updatedAt: Date.now()
         };
         this.lastStatus = status;
-        this.lastUrl = window.location.href;
         this.sendMessage({
             type: 'UPDATE_PRESENCE',
             data

@@ -1,4 +1,4 @@
-import { BridgeStatusResponse } from './types.js';
+import { NetflixPresenceData } from './types.js';
 
 class PopupController {
   private rpcToggle = document.getElementById('rpcToggle') as HTMLInputElement | null;
@@ -12,50 +12,86 @@ class PopupController {
   constructor() {
     this.initListeners();
     this.loadState();
-    this.checkBridgeStatus();
+    this.pingBackground();
   }
 
   private initListeners() {
     this.rpcToggle?.addEventListener('change', () => {
       const enabled = this.rpcToggle?.checked ?? true;
-      chrome.storage.local.set({ rpcEnabled: enabled }, () => {
-        console.log('[Popup] Rich presence enabled:', enabled);
-      });
+      chrome.storage.local.set({ rpcEnabled: enabled });
     });
 
     this.refreshBtn?.addEventListener('click', () => {
-      this.checkBridgeStatus();
+      this.pingBackground();
+    });
+
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local') {
+        if (changes.bridgeConnected !== undefined) {
+          this.setBridgeConnected(changes.bridgeConnected.newValue === true);
+        }
+        if (changes.discordConnected !== undefined) {
+          this.setDiscordConnected(changes.discordConnected.newValue === true);
+        }
+        if (changes.currentMedia !== undefined) {
+          this.renderMedia(changes.currentMedia.newValue as NetflixPresenceData | null);
+        }
+      }
     });
   }
 
   private loadState() {
-    chrome.storage.local.get(['rpcEnabled'], (result) => {
+    chrome.storage.local.get(['rpcEnabled', 'bridgeConnected', 'discordConnected', 'currentMedia'], (result) => {
       if (this.rpcToggle) {
         this.rpcToggle.checked = result.rpcEnabled !== false;
       }
+      this.setBridgeConnected(result.bridgeConnected === true);
+      this.setDiscordConnected(result.discordConnected === true);
+      this.renderMedia(result.currentMedia as NetflixPresenceData | null);
     });
   }
 
-  private async checkBridgeStatus() {
+  private pingBackground() {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-      const res = await fetch('http://127.0.0.1:7777/status', {
-        signal: controller.signal
+      chrome.runtime.sendMessage({ type: 'PING' }, (response) => {
+        if (chrome.runtime.lastError) {
+          this.setBridgeConnected(false);
+          return;
+        }
+        if (response && response.connected !== undefined) {
+          this.setBridgeConnected(response.connected === true);
+        }
       });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = (await res.json()) as BridgeStatusResponse;
-        this.setBridgeConnected(true);
-        this.setDiscordConnected(data.discordConnected);
-      } else {
-        this.setBridgeConnected(false);
-      }
     } catch {
       this.setBridgeConnected(false);
     }
+  }
+
+  private renderMedia(media: NetflixPresenceData | null) {
+    if (!this.mediaTitle || !this.mediaSubtitle) return;
+
+    if (!media || media.status === 'IDLE') {
+      this.mediaTitle.textContent = 'No video playing';
+      this.mediaSubtitle.textContent = 'Browse Netflix to start watching';
+      return;
+    }
+
+    this.mediaTitle.textContent = media.title;
+
+    let sub = '';
+    if (media.season && media.episode) {
+      sub = `Season ${media.season}: Episode ${media.episode}`;
+      if (media.episodeTitle) sub += ` - ${media.episodeTitle}`;
+    } else if (media.episode) {
+      sub = `Episode ${media.episode}`;
+      if (media.episodeTitle) sub += ` - ${media.episodeTitle}`;
+    } else if (media.episodeTitle) {
+      sub = media.episodeTitle;
+    } else {
+      sub = media.status === 'PLAYING' ? 'Playing' : 'Paused';
+    }
+
+    this.mediaSubtitle.textContent = sub;
   }
 
   private setBridgeConnected(connected: boolean) {
