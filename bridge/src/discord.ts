@@ -8,7 +8,6 @@ export class DiscordBridge {
   private lastData: NetflixPresenceData | null = null;
   private clientId: string;
   private artworkCache: Map<string, string> = new Map();
-  private pauseInterval: NodeJS.Timeout | null = null;
 
   constructor(clientId?: string) {
     this.clientId = clientId || process.env.DISCORD_CLIENT_ID || DEFAULT_CLIENT_ID;
@@ -136,28 +135,13 @@ export class DiscordBridge {
 
       let timestamps: { start: number; end: number } | undefined = undefined;
 
-      if (data.duration > 0 && data.currentTime >= 0) {
+      if (isPlaying && data.duration > 0 && data.currentTime >= 0) {
         const cur = Math.floor(data.currentTime);
         const rem = Math.max(0, Math.floor(data.duration - data.currentTime));
         timestamps = {
           start: nowSeconds - cur,
           end: nowSeconds + rem
         };
-      }
-
-      if (!isPlaying) {
-        if (!this.pauseInterval) {
-          this.pauseInterval = setInterval(() => {
-            if (this.lastData && this.lastData.status === 'PAUSED') {
-              this.updatePresence(this.lastData);
-            }
-          }, 1500);
-        }
-      } else {
-        if (this.pauseInterval) {
-          clearInterval(this.pauseInterval);
-          this.pauseInterval = null;
-        }
       }
 
       let largeImage = data.imageUrl;
@@ -179,9 +163,14 @@ export class DiscordBridge {
           small_image: smallImage,
           small_text: isPlaying ? 'Netflix' : 'Paused'
         },
-        timestamps,
         instance: false
       };
+
+      if (isPlaying && timestamps) {
+        activity.timestamps = timestamps;
+      } else {
+        (activity as any).timestamps = null;
+      }
 
       if (data.url && (data.url.startsWith('http://') || data.url.startsWith('https://'))) {
         activity.buttons = [
@@ -200,10 +189,6 @@ export class DiscordBridge {
   }
 
   public async clearPresence(): Promise<void> {
-    if (this.pauseInterval) {
-      clearInterval(this.pauseInterval);
-      this.pauseInterval = null;
-    }
     this.lastData = null;
     if (this.client.connected) {
       try {
