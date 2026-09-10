@@ -127,7 +127,10 @@ export class DiscordBridge {
       }
 
       if (data.status === 'PAUSED') {
-        stateText += ' (Paused)';
+        const mins = Math.floor((data.currentTime || 0) / 60);
+        const secs = Math.floor((data.currentTime || 0) % 60);
+        const timeStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        stateText += ` (Paused: ${timeStr})`;
       }
 
       const nowSeconds = Math.floor(Date.now() / 1000);
@@ -159,16 +162,18 @@ export class DiscordBridge {
           large_image: largeImage,
           large_text: detailsText,
           small_image: smallImage,
-          small_text: 'Netflix'
+          small_text: isPlaying ? 'Netflix' : 'Paused'
         },
         instance: false
       };
 
-      if (startTimestamp && endTimestamp) {
+      if (isPlaying && startTimestamp && endTimestamp) {
         activity.timestamps = {
           start: startTimestamp,
           end: endTimestamp
         };
+      } else {
+        (activity as any).timestamps = null;
       }
 
       if (data.url && (data.url.startsWith('http://') || data.url.startsWith('https://'))) {
