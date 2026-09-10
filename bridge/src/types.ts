@@ -9,6 +9,7 @@ export interface NetflixPresenceData {
   currentTime: number;
   duration: number;
   url?: string;
+  imageUrl?: string;
   updatedAt: number;
 }
 

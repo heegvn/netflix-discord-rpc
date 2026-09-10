@@ -5,6 +5,7 @@ interface CachedShowInfo {
   season?: number;
   episode?: number;
   episodeTitle?: string;
+  imageUrl?: string;
 }
 
 class NetflixScraper {
@@ -13,6 +14,7 @@ class NetflixScraper {
   private checkInterval: number | null = null;
   private videoElement: HTMLVideoElement | null = null;
   private showInfoCache: Map<string, CachedShowInfo> = new Map();
+  private fetchingId: string | null = null;
 
   constructor() {
     console.log('[Netflix RPC] Extension content script initialized on Netflix!');
@@ -60,7 +62,6 @@ class NetflixScraper {
 
   private sendMessage(msg: BridgeMessage) {
     if (msg.type === 'UPDATE_PRESENCE' && msg.data) {
-      console.log('[Netflix RPC] Sending presence:', msg.data.title, msg.data.status);
       this.postToBridge('/activity', msg.data);
 
       chrome.storage.local.set({
@@ -102,7 +103,7 @@ class NetflixScraper {
     if (!this.isWatchUrl()) {
       this.sendClearPresence();
     } else {
-      setTimeout(() => this.checkPlayback(), 1000);
+      setTimeout(() => this.checkPlayback(), 500);
     }
   }
 
@@ -110,11 +111,15 @@ class NetflixScraper {
     return window.location.pathname.startsWith('/watch');
   }
 
+  private getMediaId(): string | null {
+    const match = window.location.pathname.match(/\/watch\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
   private attachVideoListeners() {
     const video = document.querySelector('video') as HTMLVideoElement | null;
     if (video && video !== this.videoElement) {
       this.videoElement = video;
-      console.log('[Netflix RPC] Video element found!');
       video.addEventListener('play', () => this.checkPlayback());
       video.addEventListener('pause', () => this.checkPlayback());
       video.addEventListener('ended', () => this.sendClearPresence());
@@ -122,7 +127,58 @@ class NetflixScraper {
     }
   }
 
-  private parseMediaInfo(): CachedShowInfo {
+  private async fetchNetflixMetadata(mediaId: string): Promise<Partial<CachedShowInfo>> {
+    try {
+      const res = await fetch(`https://www.netflix.com/nq/website/memberapi/release/metadata?movieid=${mediaId}`);
+      if (res.ok) {
+        const json = await res.json();
+        const video = json?.video;
+        if (!video) return {};
+
+        const title = video.title || '';
+        let seasonNum: number | undefined;
+        let epNum: number | undefined;
+        let epTitle: string | undefined;
+        let imageUrl: string | undefined = video.boxart?.[0]?.url || video.storyart?.[0]?.url;
+
+        if (video.type === 'show' && video.seasons) {
+          const currentEpId = video.currentEpisode;
+          const currentSeason = video.seasons.find((s: any) =>
+            s.episodes?.some((e: any) => e.episodeId === currentEpId)
+          );
+          if (currentSeason) {
+            seasonNum = currentSeason.seq;
+            const currentEp = currentSeason.episodes?.find((e: any) => e.episodeId === currentEpId);
+            if (currentEp) {
+              epNum = currentEp.seq;
+              epTitle = currentEp.title;
+              if (!imageUrl && currentEp.thumbs?.[0]?.url) {
+                imageUrl = currentEp.thumbs[0].url;
+              }
+            }
+          }
+        }
+
+        if (!imageUrl) {
+          const og = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+          if (og && og.startsWith('http')) {
+            imageUrl = og;
+          }
+        }
+
+        return {
+          title,
+          season: seasonNum,
+          episode: epNum,
+          episodeTitle: epTitle,
+          imageUrl
+        };
+      }
+    } catch {}
+    return {};
+  }
+
+  private parseMediaInfoFromDom(): CachedShowInfo {
     const watchKey = window.location.pathname;
 
     let rawTitle = '';
@@ -194,26 +250,23 @@ class NetflixScraper {
       episodeTitle = rawEpisodeDetail;
     }
 
-    const info: CachedShowInfo = {
+    let imageUrl: string | undefined = undefined;
+    const og = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+    if (og && og.startsWith('http')) {
+      imageUrl = og;
+    }
+
+    return {
       title: mainTitle,
       season,
       episode,
-      episodeTitle
+      episodeTitle,
+      imageUrl
     };
-
-    if (mainTitle !== 'Netflix Video') {
-      this.showInfoCache.set(watchKey, info);
-    }
-
-    return info;
   }
 
-  private checkPlayback() {
-    if (!this.isEnabled) {
-      return;
-    }
-
-    if (!this.isWatchUrl()) {
+  private async checkPlayback() {
+    if (!this.isEnabled || !this.isWatchUrl()) {
       if (this.lastStatus !== 'IDLE') {
         this.sendClearPresence();
       }
@@ -225,10 +278,36 @@ class NetflixScraper {
       return;
     }
 
+    const watchKey = window.location.pathname;
+    const mediaId = this.getMediaId();
+
+    if (mediaId && !this.showInfoCache.has(watchKey) && this.fetchingId !== mediaId) {
+      this.fetchingId = mediaId;
+      this.fetchNetflixMetadata(mediaId).then((meta) => {
+        if (meta && meta.title) {
+          const merged: CachedShowInfo = {
+            title: meta.title,
+            season: meta.season,
+            episode: meta.episode,
+            episodeTitle: meta.episodeTitle,
+            imageUrl: meta.imageUrl
+          };
+          this.showInfoCache.set(watchKey, merged);
+          this.checkPlayback();
+        }
+      });
+    }
+
+    let info = this.showInfoCache.get(watchKey);
+    if (!info) {
+      info = this.parseMediaInfoFromDom();
+      if (info.title !== 'Netflix Video') {
+        this.showInfoCache.set(watchKey, info);
+      }
+    }
+
     const isPaused = video.paused || video.ended;
     const status: PlaybackStatus = isPaused ? 'PAUSED' : 'PLAYING';
-
-    const info = this.parseMediaInfo();
 
     const data: NetflixPresenceData = {
       status,
@@ -236,6 +315,7 @@ class NetflixScraper {
       season: info.season,
       episode: info.episode,
       episodeTitle: info.episodeTitle,
+      imageUrl: info.imageUrl,
       currentTime: video.currentTime || 0,
       duration: isFinite(video.duration) ? video.duration : 0,
       url: window.location.href,
@@ -243,7 +323,6 @@ class NetflixScraper {
     };
 
     this.lastStatus = status;
-
     this.sendMessage({
       type: 'UPDATE_PRESENCE',
       data

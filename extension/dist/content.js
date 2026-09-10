@@ -4,6 +4,7 @@ class NetflixScraper {
     checkInterval = null;
     videoElement = null;
     showInfoCache = new Map();
+    fetchingId = null;
     constructor() {
         console.log('[Netflix RPC] Extension content script initialized on Netflix!');
         this.initSettings();
@@ -47,7 +48,6 @@ class NetflixScraper {
     }
     sendMessage(msg) {
         if (msg.type === 'UPDATE_PRESENCE' && msg.data) {
-            console.log('[Netflix RPC] Sending presence:', msg.data.title, msg.data.status);
             this.postToBridge('/activity', msg.data);
             chrome.storage.local.set({
                 currentMedia: msg.data,
@@ -85,24 +85,73 @@ class NetflixScraper {
             this.sendClearPresence();
         }
         else {
-            setTimeout(() => this.checkPlayback(), 1000);
+            setTimeout(() => this.checkPlayback(), 500);
         }
     }
     isWatchUrl() {
         return window.location.pathname.startsWith('/watch');
     }
+    getMediaId() {
+        const match = window.location.pathname.match(/\/watch\/(\d+)/);
+        return match ? match[1] : null;
+    }
     attachVideoListeners() {
         const video = document.querySelector('video');
         if (video && video !== this.videoElement) {
             this.videoElement = video;
-            console.log('[Netflix RPC] Video element found!');
             video.addEventListener('play', () => this.checkPlayback());
             video.addEventListener('pause', () => this.checkPlayback());
             video.addEventListener('ended', () => this.sendClearPresence());
             video.addEventListener('seeked', () => this.checkPlayback());
         }
     }
-    parseMediaInfo() {
+    async fetchNetflixMetadata(mediaId) {
+        try {
+            const res = await fetch(`https://www.netflix.com/nq/website/memberapi/release/metadata?movieid=${mediaId}`);
+            if (res.ok) {
+                const json = await res.json();
+                const video = json?.video;
+                if (!video)
+                    return {};
+                const title = video.title || '';
+                let seasonNum;
+                let epNum;
+                let epTitle;
+                let imageUrl = video.boxart?.[0]?.url || video.storyart?.[0]?.url;
+                if (video.type === 'show' && video.seasons) {
+                    const currentEpId = video.currentEpisode;
+                    const currentSeason = video.seasons.find((s) => s.episodes?.some((e) => e.episodeId === currentEpId));
+                    if (currentSeason) {
+                        seasonNum = currentSeason.seq;
+                        const currentEp = currentSeason.episodes?.find((e) => e.episodeId === currentEpId);
+                        if (currentEp) {
+                            epNum = currentEp.seq;
+                            epTitle = currentEp.title;
+                            if (!imageUrl && currentEp.thumbs?.[0]?.url) {
+                                imageUrl = currentEp.thumbs[0].url;
+                            }
+                        }
+                    }
+                }
+                if (!imageUrl) {
+                    const og = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+                    if (og && og.startsWith('http')) {
+                        imageUrl = og;
+                    }
+                }
+                return {
+                    title,
+                    season: seasonNum,
+                    episode: epNum,
+                    episodeTitle: epTitle,
+                    imageUrl
+                };
+            }
+        }
+        catch { }
+        return {};
+    }
+    parseMediaInfoFromDom() {
         const watchKey = window.location.pathname;
         let rawTitle = '';
         let rawEpisodeDetail = '';
@@ -169,22 +218,21 @@ class NetflixScraper {
         if (rawEpisodeDetail && !episodeTitle) {
             episodeTitle = rawEpisodeDetail;
         }
-        const info = {
+        let imageUrl = undefined;
+        const og = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+        if (og && og.startsWith('http')) {
+            imageUrl = og;
+        }
+        return {
             title: mainTitle,
             season,
             episode,
-            episodeTitle
+            episodeTitle,
+            imageUrl
         };
-        if (mainTitle !== 'Netflix Video') {
-            this.showInfoCache.set(watchKey, info);
-        }
-        return info;
     }
-    checkPlayback() {
-        if (!this.isEnabled) {
-            return;
-        }
-        if (!this.isWatchUrl()) {
+    async checkPlayback() {
+        if (!this.isEnabled || !this.isWatchUrl()) {
             if (this.lastStatus !== 'IDLE') {
                 this.sendClearPresence();
             }
@@ -194,15 +242,40 @@ class NetflixScraper {
         if (!video) {
             return;
         }
+        const watchKey = window.location.pathname;
+        const mediaId = this.getMediaId();
+        if (mediaId && !this.showInfoCache.has(watchKey) && this.fetchingId !== mediaId) {
+            this.fetchingId = mediaId;
+            this.fetchNetflixMetadata(mediaId).then((meta) => {
+                if (meta && meta.title) {
+                    const merged = {
+                        title: meta.title,
+                        season: meta.season,
+                        episode: meta.episode,
+                        episodeTitle: meta.episodeTitle,
+                        imageUrl: meta.imageUrl
+                    };
+                    this.showInfoCache.set(watchKey, merged);
+                    this.checkPlayback();
+                }
+            });
+        }
+        let info = this.showInfoCache.get(watchKey);
+        if (!info) {
+            info = this.parseMediaInfoFromDom();
+            if (info.title !== 'Netflix Video') {
+                this.showInfoCache.set(watchKey, info);
+            }
+        }
         const isPaused = video.paused || video.ended;
         const status = isPaused ? 'PAUSED' : 'PLAYING';
-        const info = this.parseMediaInfo();
         const data = {
             status,
             title: info.title,
             season: info.season,
             episode: info.episode,
             episodeTitle: info.episodeTitle,
+            imageUrl: info.imageUrl,
             currentTime: video.currentTime || 0,
             duration: isFinite(video.duration) ? video.duration : 0,
             url: window.location.href,

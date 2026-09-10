@@ -7,11 +7,69 @@ export class DiscordBridge {
   private client: DiscordIPCClient;
   private lastData: NetflixPresenceData | null = null;
   private clientId: string;
+  private artworkCache: Map<string, string> = new Map();
 
   constructor(clientId?: string) {
     this.clientId = clientId || process.env.DISCORD_CLIENT_ID || DEFAULT_CLIENT_ID;
     this.client = new DiscordIPCClient(this.clientId);
     this.setupEvents();
+  }
+
+  private async resolveArtwork(title: string): Promise<string | undefined> {
+    const cached = this.artworkCache.get(title);
+    if (cached) {
+      return cached;
+    }
+
+    const cleanTitle = title.replace(/\s*\(.*?\)/g, '').trim();
+    const queries = [
+      cleanTitle,
+      cleanTitle.replace(/\bet\b/gi, 'and')
+    ];
+
+    for (const q of queries) {
+      try {
+        const res = await fetch(`https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const json: any = await res.json();
+          const img = json?.image?.original || json?.image?.medium;
+          if (img) {
+            this.artworkCache.set(title, img);
+            return img;
+          }
+        }
+      } catch {}
+    }
+
+    for (const q of queries) {
+      try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=tvShow&limit=1`);
+        if (res.ok) {
+          const json: any = await res.json();
+          const art = json?.results?.[0]?.artworkUrl100;
+          if (art) {
+            const highRes = art.replace('100x100bb', '600x600bb');
+            this.artworkCache.set(title, highRes);
+            return highRes;
+          }
+        }
+      } catch {}
+
+      try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=movie&limit=1`);
+        if (res.ok) {
+          const json: any = await res.json();
+          const art = json?.results?.[0]?.artworkUrl100;
+          if (art) {
+            const highRes = art.replace('100x100bb', '600x600bb');
+            this.artworkCache.set(title, highRes);
+            return highRes;
+          }
+        }
+      } catch {}
+    }
+
+    return undefined;
   }
 
   private setupEvents() {
@@ -84,14 +142,23 @@ export class DiscordBridge {
         endTimestamp = Math.floor(now + (remainingSeconds * 1000));
       }
 
+      let largeImage = data.imageUrl;
+      if (!largeImage && data.title) {
+        largeImage = await this.resolveArtwork(data.title);
+      }
+      if (!largeImage) {
+        largeImage = 'https://cdn.rcd.gg/PreMiD/websites/N/Netflix/assets/1.png';
+      }
+      const smallImage = 'https://cdn.rcd.gg/PreMiD/websites/N/Netflix/assets/1.png';
+
       const activity: DiscordActivityPayload = {
         details: detailsText.slice(0, 128),
         state: stateText.slice(0, 128),
         assets: {
-          large_image: 'https://cdn.rcd.gg/PreMiD/websites/N/Netflix/assets/1.png',
-          large_text: 'Netflix',
-          small_image: isPlaying ? 'https://cdn.rcd.gg/PreMiD/websites/N/Netflix/assets/1.png' : undefined,
-          small_text: isPlaying ? 'Playing' : 'Paused'
+          large_image: largeImage,
+          large_text: detailsText,
+          small_image: smallImage,
+          small_text: 'Netflix'
         },
         instance: false
       };
