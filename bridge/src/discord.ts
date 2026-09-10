@@ -1,12 +1,8 @@
 import { DiscordIPCClient, DiscordActivityPayload } from './discord-ipc.js';
 import { NetflixPresenceData } from './types.js';
 
-// ID d'application Discord par défaut (Netflix)
 const DEFAULT_CLIENT_ID = '925761358986801192';
 
-/**
- * Gestionnaire de présence Netflix pour Discord
- */
 export class DiscordBridge {
   private client: DiscordIPCClient;
   private lastData: NetflixPresenceData | null = null;
@@ -20,20 +16,19 @@ export class DiscordBridge {
 
   private setupEvents() {
     this.client.on('ready', (user) => {
-      console.log(`[Discord] Connecté avec succès au compte Discord : ${user?.username || 'Utilisateur'} (App: ${this.clientId})`);
+      console.log(`[Discord] Connected to user: ${user?.username || 'User'} (App: ${this.clientId})`);
       if (this.lastData) {
         this.updatePresence(this.lastData);
       }
     });
 
     this.client.on('disconnected', () => {
-      console.warn('[Discord] Déconnecté du client Discord Desktop. Reconnexion automatique programmée...');
+      console.warn('[Discord] Disconnected from Discord Desktop. Auto-reconnecting...');
     });
 
     this.client.on('error', (err) => {
-      // Affichage sobre des erreurs courantes sans spam de stack traces
       if (err?.code !== 'ENOENT') {
-        console.warn(`[Discord] Signal IPC: ${err?.message || err}`);
+        console.warn(`[Discord] IPC signal: ${err?.message || err}`);
       }
     });
   }
@@ -41,7 +36,7 @@ export class DiscordBridge {
   public async connect(): Promise<boolean> {
     const success = await this.client.connect();
     if (!success) {
-      console.warn('[Discord] Discord Desktop n\'est pas encore détecté. Le pont réessayera automatiquement.');
+      console.warn('[Discord] Discord Desktop is not running. Retrying automatically in background...');
     }
     return success;
   }
@@ -59,29 +54,27 @@ export class DiscordBridge {
         return;
       }
 
-      // Construction des textes d'activité
       let detailsText = data.title;
       let stateText = '';
 
       if (data.season && data.episode) {
-        stateText = `Saison ${data.season}: Épisode ${data.episode}`;
+        stateText = `Season ${data.season}: Episode ${data.episode}`;
         if (data.episodeTitle) {
           stateText += ` - ${data.episodeTitle}`;
         }
       } else if (data.episodeTitle) {
         stateText = data.episodeTitle;
       } else {
-        stateText = data.status === 'PLAYING' ? 'En cours de visionnage' : 'En pause';
+        stateText = data.status === 'PLAYING' ? 'Watching' : 'Paused';
       }
 
       if (data.status === 'PAUSED') {
-        stateText += ' (En pause)';
+        stateText += ' (Paused)';
       }
 
       const now = Date.now();
       const isPlaying = data.status === 'PLAYING';
 
-      // Calcul des timestamps pour la barre de progression dynamique
       let startTimestamp: number | undefined = undefined;
       let endTimestamp: number | undefined = undefined;
 
@@ -98,7 +91,7 @@ export class DiscordBridge {
           large_image: 'netflix',
           large_text: 'Netflix',
           small_image: isPlaying ? 'play' : 'pause',
-          small_text: isPlaying ? 'Lecture en cours' : 'En pause'
+          small_text: isPlaying ? 'Playing' : 'Paused'
         },
         instance: false
       };
@@ -110,11 +103,10 @@ export class DiscordBridge {
         };
       }
 
-      // Bouton direct pour regarder sur Netflix (si URL valide)
       if (data.url && (data.url.startsWith('http://') || data.url.startsWith('https://'))) {
         activity.buttons = [
           {
-            label: 'Regarder sur Netflix',
+            label: 'Watch on Netflix',
             url: data.url
           }
         ];
@@ -123,7 +115,7 @@ export class DiscordBridge {
       await this.client.setActivity(activity);
       console.log(`[Presence] ${detailsText} | ${stateText} [${data.status}]`);
     } catch (err: any) {
-      console.error('[Presence] Erreur lors de la mise à jour:', err?.message || err);
+      console.error('[Presence] Error updating presence:', err?.message || err);
     }
   }
 
@@ -132,9 +124,9 @@ export class DiscordBridge {
     if (this.client.connected) {
       try {
         await this.client.clearActivity();
-        console.log('[Presence] Statut Discord effacé.');
+        console.log('[Presence] Cleared Discord activity.');
       } catch (err: any) {
-        console.error('[Presence] Erreur lors de l\'effacement:', err?.message || err);
+        console.error('[Presence] Error clearing activity:', err?.message || err);
       }
     }
   }

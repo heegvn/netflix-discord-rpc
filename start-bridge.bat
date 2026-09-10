@@ -5,8 +5,8 @@ echo ====================================================
 echo      NETFLIX DISCORD RICH PRESENCE - BRIDGE
 echo ====================================================
 echo.
-echo Demarrage du pont local TypeScript...
-echo Assurez-vous que Discord Desktop est ouvert sur votre PC !
+echo Starting local TypeScript bridge...
+echo Please ensure Discord Desktop is running on your PC!
 echo.
 
 cd /d "%~dp0bridge"

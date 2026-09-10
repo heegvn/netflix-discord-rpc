@@ -6,10 +6,10 @@ export interface NetflixPresenceData {
   season?: number;
   episode?: number;
   episodeTitle?: string;
-  currentTime: number; // current video position in seconds
-  duration: number; // total duration in seconds
+  currentTime: number;
+  duration: number;
   url?: string;
-  updatedAt: number; // timestamp in milliseconds
+  updatedAt: number;
 }
 
 export interface BridgeMessage {

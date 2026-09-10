@@ -2,9 +2,6 @@ import net from 'node:net';
 import crypto from 'node:crypto';
 import EventEmitter from 'node:events';
 
-/**
- * Codes d'opération du protocole Discord IPC
- */
 export enum DiscordOpCode {
   HANDSHAKE = 0,
   FRAME = 1,
@@ -39,10 +36,6 @@ export interface DiscordActivityPayload {
   instance?: boolean;
 }
 
-/**
- * Client Discord IPC natif (sans dépendance externe)
- * Communique directement avec le Named Pipe de Discord Desktop via le module 'net' de Node.js
- */
 export class DiscordIPCClient extends EventEmitter {
   private socket: net.Socket | null = null;
   private clientId: string;
@@ -56,9 +49,6 @@ export class DiscordIPCClient extends EventEmitter {
     this.clientId = clientId;
   }
 
-  /**
-   * Obtient le chemin du Named Pipe ou Unix Socket selon le système d'exploitation
-   */
   private getPipePath(id: number): string {
     if (process.platform === 'win32') {
       return `\\\\?\\pipe\\discord-ipc-${id}`;
@@ -69,9 +59,6 @@ export class DiscordIPCClient extends EventEmitter {
     return `${prefix.replace(/\/$/, '')}/discord-ipc-${id}`;
   }
 
-  /**
-   * Tente de se connecter au premier pipe Discord disponible (0 à 9)
-   */
   public async connect(): Promise<boolean> {
     if (this.isConnected) return true;
 
@@ -160,7 +147,6 @@ export class DiscordIPCClient extends EventEmitter {
       const length = this.receiveBuffer.readInt32LE(4);
 
       if (this.receiveBuffer.length < 8 + length) {
-        // Le paquet complet n'est pas encore arrivé
         break;
       }
 
@@ -171,7 +157,7 @@ export class DiscordIPCClient extends EventEmitter {
         const payload = JSON.parse(payloadBuf.toString('utf8'));
         this.handleMessage(op, payload);
       } catch (err) {
-        this.emit('error', new Error(`Échec du décodage du paquet IPC: ${err}`));
+        this.emit('error', new Error(`Failed to decode IPC packet: ${err}`));
       }
     }
   }
@@ -227,9 +213,6 @@ export class DiscordIPCClient extends EventEmitter {
     }, 10000);
   }
 
-  /**
-   * Envoie une mise à jour d'activité Rich Presence
-   */
   public async setActivity(activity: DiscordActivityPayload): Promise<void> {
     if (!this.isConnected || !this.socket) {
       return;
@@ -247,9 +230,6 @@ export class DiscordIPCClient extends EventEmitter {
     this.sendPacket(DiscordOpCode.FRAME, payload);
   }
 
-  /**
-   * Efface le statut Rich Presence
-   */
   public async clearActivity(): Promise<void> {
     if (!this.isConnected || !this.socket) {
       return;

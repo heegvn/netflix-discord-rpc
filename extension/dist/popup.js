@@ -15,7 +15,7 @@ class PopupController {
         this.rpcToggle?.addEventListener('change', () => {
             const enabled = this.rpcToggle?.checked ?? true;
             chrome.storage.local.set({ rpcEnabled: enabled }, () => {
-                console.log('[Popup] Rich presence activé:', enabled);
+                console.log('[Popup] Rich presence enabled:', enabled);
             });
         });
         this.refreshBtn?.addEventListener('click', () => {
@@ -55,15 +55,15 @@ class PopupController {
             return;
         if (connected) {
             this.bridgeStatus.className = 'status-pill status-connected';
-            this.bridgeStatus.innerHTML = '<span class="dot"></span><span class="text">Connecté</span>';
+            this.bridgeStatus.innerHTML = '<span class="dot"></span><span class="text">Connected</span>';
             this.helpSection?.classList.remove('visible');
         }
         else {
             this.bridgeStatus.className = 'status-pill status-disconnected';
-            this.bridgeStatus.innerHTML = '<span class="dot"></span><span class="text">Déconnecté</span>';
+            this.bridgeStatus.innerHTML = '<span class="dot"></span><span class="text">Disconnected</span>';
             this.discordStatus?.setAttribute('class', 'status-pill status-disconnected');
             if (this.discordStatus) {
-                this.discordStatus.innerHTML = '<span class="dot"></span><span class="text">Non connecté</span>';
+                this.discordStatus.innerHTML = '<span class="dot"></span><span class="text">Disconnected</span>';
             }
             this.helpSection?.classList.add('visible');
         }
@@ -73,11 +73,11 @@ class PopupController {
             return;
         if (connected) {
             this.discordStatus.className = 'status-pill status-connected';
-            this.discordStatus.innerHTML = '<span class="dot"></span><span class="text">Connecté</span>';
+            this.discordStatus.innerHTML = '<span class="dot"></span><span class="text">Connected</span>';
         }
         else {
             this.discordStatus.className = 'status-pill status-disconnected';
-            this.discordStatus.innerHTML = '<span class="dot"></span><span class="text">En attente</span>';
+            this.discordStatus.innerHTML = '<span class="dot"></span><span class="text">Waiting</span>';
         }
     }
 }

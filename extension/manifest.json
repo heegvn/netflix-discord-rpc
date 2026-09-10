@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Netflix Discord Rich Presence",
   "version": "1.0.0",
-  "description": "Affiche en temps réel ce que vous regardez sur Netflix dans votre Rich Presence Discord.",
+  "description": "Displays what you are watching on Netflix in your Discord Rich Presence in real-time.",
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",

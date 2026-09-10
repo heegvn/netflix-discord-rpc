@@ -41,7 +41,7 @@ class NetflixScraper {
       this.ws = new WebSocket('ws://127.0.0.1:7777');
 
       this.ws.onopen = () => {
-        console.log('[Netflix RPC] Connecté au pont local ws://127.0.0.1:7777');
+        console.log('[Netflix RPC] Connected to local bridge ws://127.0.0.1:7777');
         this.checkPlayback();
       };
 
@@ -51,7 +51,6 @@ class NetflixScraper {
       };
 
       this.ws.onerror = () => {
-        // En cas d'erreur de connexion, fermer et attendre
         if (this.ws) {
           this.ws.close();
         }
@@ -81,12 +80,10 @@ class NetflixScraper {
   }
 
   private startWatcher() {
-    // Vérification périodique toutes les 2.5 secondes
     this.checkInterval = window.setInterval(() => {
       this.checkPlayback();
     }, 2500);
 
-    // Écoute des navigations SPA de Netflix (URL change)
     let currentHref = location.href;
     const observer = new MutationObserver(() => {
       if (location.href !== currentHref) {
@@ -129,7 +126,6 @@ class NetflixScraper {
     let mainTitle = '';
     let episodeDetail = '';
 
-    // Sélecteur standard Netflix pour le titre en cours de lecture
     const titleContainer = document.querySelector('[data-uia="video-title"]') as HTMLElement | null;
     if (titleContainer) {
       const h4 = titleContainer.querySelector('h4');
@@ -147,7 +143,6 @@ class NetflixScraper {
       }
     }
 
-    // Fallback 1: sélecteur alternatif de classes
     if (!mainTitle) {
       const altTitle = document.querySelector('.video-title, .ellipsize-text');
       if (altTitle && altTitle.textContent) {
@@ -155,10 +150,8 @@ class NetflixScraper {
       }
     }
 
-    // Fallback 2: Balise <title> de la page
     if (!mainTitle) {
       const docTitle = document.title || '';
-      // Ex: "Stranger Things | Netflix" ou "Breaking Bad: S1:E1 - Netflix"
       const cleaned = docTitle.replace(/\s*[-|]\s*Netflix.*$/i, '').trim();
       if (cleaned) {
         mainTitle = cleaned;
@@ -166,32 +159,28 @@ class NetflixScraper {
     }
 
     if (!mainTitle) {
-      mainTitle = 'Contenu Netflix';
+      mainTitle = 'Netflix Video';
     }
 
-    // Analyse des numéros de saison et d'épisode
     let season: number | undefined = undefined;
     let episode: number | undefined = undefined;
     let episodeTitle: string | undefined = undefined;
 
     const parseSource = (episodeDetail || mainTitle);
 
-    // Recherche "S1:E3" ou "S1 : E3" ou "Saison 1 Épisode 3"
-    const seMatch = parseSource.match(/S(?:aison\s*)?(\d+)[:\s]*E(?:pisode\s*)?(\d+)/i);
+    const seMatch = parseSource.match(/S(?:eason|aison)?\s*(\d+)[:\s]*E(?:pisode)?\s*(\d+)/i);
     if (seMatch) {
       season = parseInt(seMatch[1], 10);
       episode = parseInt(seMatch[2], 10);
     } else {
-      // Recherche uniquement épisode (ex: Épisode 4)
-      const epMatch = parseSource.match(/É?E?pisode\s*(\d+)/i);
+      const epMatch = parseSource.match(/E(?:pisode|p)?\s*(\d+)/i);
       if (epMatch) {
         episode = parseInt(epMatch[1], 10);
       }
     }
 
     if (episodeDetail) {
-      // Nettoyer le détail pour obtenir le nom de l'épisode s'il existe
-      const cleanedEp = episodeDetail.replace(/S(?:aison\s*)?\d+[:\s]*E(?:pisode\s*)?\d+/i, '').replace(/^[-\s:]+/, '').trim();
+      const cleanedEp = episodeDetail.replace(/S(?:eason|aison)?\s*\d+[:\s]*E(?:pisode)?\s*\d+/i, '').replace(/^[-\s:]+/, '').trim();
       if (cleanedEp) {
         episodeTitle = cleanedEp;
       }
@@ -249,7 +238,6 @@ class NetflixScraper {
   }
 }
 
-// Initialisation dès que le document est prêt
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => new NetflixScraper());
 } else {

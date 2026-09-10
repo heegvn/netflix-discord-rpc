@@ -1,7 +1,7 @@
 {
   "name": "netflix-discord-rpc",
   "version": "1.0.0",
-  "description": "Discord Rich Presence pour Netflix avec Extension Web et Pont local en TypeScript",
+  "description": "Discord Rich Presence for Netflix with Web Extension and local bridge in pure TypeScript",
   "private": true,
   "scripts": {
     "build": "npm run build:extension && npm run build:bridge",

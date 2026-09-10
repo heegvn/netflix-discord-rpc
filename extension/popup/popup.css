@@ -60,7 +60,6 @@ body {
   color: #a0a0a0;
 }
 
-/* Toggle Switch */
 .toggle-section {
   display: flex;
   align-items: center;
@@ -129,7 +128,6 @@ input:checked + .slider:before {
   transform: translateX(18px);
 }
 
-/* Status Box */
 .status-box {
   display: flex;
   flex-direction: column;
@@ -184,7 +182,6 @@ input:checked + .slider:before {
   background: #e74c3c;
 }
 
-/* Media Box */
 .media-box {
   background: linear-gradient(135deg, rgba(229, 9, 20, 0.08), rgba(88, 101, 242, 0.08));
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -221,7 +218,6 @@ input:checked + .slider:before {
   text-overflow: ellipsis;
 }
 
-/* Help Box */
 .help-section {
   display: none;
   background: rgba(243, 156, 18, 0.12);
@@ -247,7 +243,6 @@ input:checked + .slider:before {
   font-weight: bold;
 }
 
-/* Footer */
 .footer {
   display: flex;
   align-items: center;
