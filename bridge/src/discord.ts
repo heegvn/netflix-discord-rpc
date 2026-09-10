@@ -1,7 +1,7 @@
 import { DiscordIPCClient, DiscordActivityPayload } from './discord-ipc.js';
 import { NetflixPresenceData } from './types.js';
 
-const DEFAULT_CLIENT_ID = '925761358986801192';
+const DEFAULT_CLIENT_ID = '926541425682829352';
 
 export class DiscordBridge {
   private client: DiscordIPCClient;
@@ -88,9 +88,9 @@ export class DiscordBridge {
         details: detailsText.slice(0, 128),
         state: stateText.slice(0, 128),
         assets: {
-          large_image: 'netflix',
+          large_image: 'https://cdn.rcd.gg/PreMiD/websites/N/Netflix/assets/1.png',
           large_text: 'Netflix',
-          small_image: isPlaying ? 'play' : 'pause',
+          small_image: isPlaying ? 'https://cdn.rcd.gg/PreMiD/websites/N/Netflix/assets/1.png' : undefined,
           small_text: isPlaying ? 'Playing' : 'Paused'
         },
         instance: false
