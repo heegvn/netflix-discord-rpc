@@ -1,3 +1,4 @@
+"use strict";
 class PopupController {
     rpcToggle = document.getElementById('rpcToggle');
     bridgeStatus = document.getElementById('bridgeStatus');
@@ -63,6 +64,17 @@ class PopupController {
     }
     async checkBridgeStatus() {
         try {
+            chrome.runtime.sendMessage({ type: 'PING' }, (res) => {
+                if (!chrome.runtime.lastError && res && res.connected) {
+                    this.setBridgeConnected(true);
+                    if (res.data?.discordConnected !== undefined) {
+                        this.setDiscordConnected(res.data.discordConnected === true);
+                    }
+                    if (res.data?.currentMedia) {
+                        this.renderMedia(res.data.currentMedia);
+                    }
+                }
+            });
             const res = await this.fetchWithFallback('/status');
             if (res && res.ok) {
                 const data = await res.json();
@@ -80,12 +92,33 @@ class PopupController {
                 }
             }
             else {
-                this.setBridgeConnected(false);
+                chrome.storage.local.get(['bridgeConnected', 'discordConnected', 'currentMedia'], (stored) => {
+                    if (stored.bridgeConnected) {
+                        this.setBridgeConnected(true);
+                        this.setDiscordConnected(stored.discordConnected === true);
+                        if (stored.currentMedia) {
+                            this.renderMedia(stored.currentMedia);
+                        }
+                    }
+                    else {
+                        this.setBridgeConnected(false);
+                    }
+                });
             }
         }
         catch (err) {
-            console.error('[Popup] checkBridgeStatus exception:', err);
-            this.setBridgeConnected(false);
+            chrome.storage.local.get(['bridgeConnected', 'discordConnected', 'currentMedia'], (stored) => {
+                if (stored.bridgeConnected) {
+                    this.setBridgeConnected(true);
+                    this.setDiscordConnected(stored.discordConnected === true);
+                    if (stored.currentMedia) {
+                        this.renderMedia(stored.currentMedia);
+                    }
+                }
+                else {
+                    this.setBridgeConnected(false);
+                }
+            });
         }
     }
     renderMedia(media) {
@@ -150,4 +183,3 @@ class PopupController {
 document.addEventListener('DOMContentLoaded', () => {
     new PopupController();
 });
-export {};

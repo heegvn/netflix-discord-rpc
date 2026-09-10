@@ -1,3 +1,4 @@
+"use strict";
 class BackgroundService {
     ws = null;
     isConnected = false;
@@ -116,4 +117,3 @@ class BackgroundService {
     }
 }
 new BackgroundService();
-export {};

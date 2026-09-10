@@ -1,5 +1,3 @@
-import { BridgeMessage, BridgeStatusResponse, NetflixPresenceData } from './types.js';
-
 class BackgroundService {
   private ws: WebSocket | null = null;
   private isConnected: boolean = false;

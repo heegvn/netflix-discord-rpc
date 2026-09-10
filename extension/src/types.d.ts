@@ -1,6 +1,6 @@
-export type PlaybackStatus = 'PLAYING' | 'PAUSED' | 'IDLE';
+type PlaybackStatus = 'PLAYING' | 'PAUSED' | 'IDLE';
 
-export interface NetflixPresenceData {
+interface NetflixPresenceData {
   status: PlaybackStatus;
   title: string;
   season?: number;
@@ -13,12 +13,12 @@ export interface NetflixPresenceData {
   updatedAt: number;
 }
 
-export interface BridgeMessage {
+interface BridgeMessage {
   type: 'UPDATE_PRESENCE' | 'CLEAR_PRESENCE' | 'PING';
   data?: NetflixPresenceData;
 }
 
-export interface BridgeStatusResponse {
+interface BridgeStatusResponse {
   type: 'STATUS' | 'PONG';
   discordConnected: boolean;
   activePresence: boolean;

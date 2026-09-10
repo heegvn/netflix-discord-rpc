@@ -1,5 +1,3 @@
-import { NetflixPresenceData } from './types.js';
-
 class PopupController {
   private rpcToggle = document.getElementById('rpcToggle') as HTMLInputElement | null;
   private bridgeStatus = document.getElementById('bridgeStatus') as HTMLElement | null;
@@ -72,6 +70,18 @@ class PopupController {
 
   private async checkBridgeStatus() {
     try {
+      chrome.runtime.sendMessage({ type: 'PING' }, (res) => {
+        if (!chrome.runtime.lastError && res && res.connected) {
+          this.setBridgeConnected(true);
+          if (res.data?.discordConnected !== undefined) {
+            this.setDiscordConnected(res.data.discordConnected === true);
+          }
+          if (res.data?.currentMedia) {
+            this.renderMedia(res.data.currentMedia);
+          }
+        }
+      });
+
       const res = await this.fetchWithFallback('/status');
 
       if (res && res.ok) {
@@ -89,11 +99,30 @@ class PopupController {
           });
         }
       } else {
-        this.setBridgeConnected(false);
+        chrome.storage.local.get(['bridgeConnected', 'discordConnected', 'currentMedia'], (stored) => {
+          if (stored.bridgeConnected) {
+            this.setBridgeConnected(true);
+            this.setDiscordConnected(stored.discordConnected === true);
+            if (stored.currentMedia) {
+              this.renderMedia(stored.currentMedia as NetflixPresenceData);
+            }
+          } else {
+            this.setBridgeConnected(false);
+          }
+        });
       }
     } catch (err) {
-      console.error('[Popup] checkBridgeStatus exception:', err);
-      this.setBridgeConnected(false);
+      chrome.storage.local.get(['bridgeConnected', 'discordConnected', 'currentMedia'], (stored) => {
+        if (stored.bridgeConnected) {
+          this.setBridgeConnected(true);
+          this.setDiscordConnected(stored.discordConnected === true);
+          if (stored.currentMedia) {
+            this.renderMedia(stored.currentMedia as NetflixPresenceData);
+          }
+        } else {
+          this.setBridgeConnected(false);
+        }
+      });
     }
   }
 

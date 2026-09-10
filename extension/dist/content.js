@@ -1,3 +1,4 @@
+"use strict";
 class NetflixScraper {
     isEnabled = true;
     lastStatus = 'IDLE';
@@ -300,4 +301,3 @@ if (document.readyState === 'loading') {
 else {
     new NetflixScraper();
 }
-export {};

@@ -1,5 +1,3 @@
-import { BridgeMessage, NetflixPresenceData, PlaybackStatus } from './types.js';
-
 interface CachedShowInfo {
   title: string;
   season?: number;
