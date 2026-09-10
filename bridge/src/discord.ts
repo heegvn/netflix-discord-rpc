@@ -8,6 +8,7 @@ export class DiscordBridge {
   private lastData: NetflixPresenceData | null = null;
   private clientId: string;
   private artworkCache: Map<string, string> = new Map();
+  private lastTimestamps: { start: number; end: number } | null = null;
 
   constructor(clientId?: string) {
     this.clientId = clientId || process.env.DISCORD_CLIENT_ID || DEFAULT_CLIENT_ID;
@@ -136,13 +137,25 @@ export class DiscordBridge {
       const nowSeconds = Math.floor(Date.now() / 1000);
       const isPlaying = data.status === 'PLAYING';
 
-      let startTimestamp: number | undefined = undefined;
-      let endTimestamp: number | undefined = undefined;
+      let timestamps: { start: number; end: number } | undefined = undefined;
 
       if (isPlaying && data.duration > 0 && data.currentTime >= 0) {
         const remainingSeconds = Math.max(0, Math.floor(data.duration - data.currentTime));
-        startTimestamp = Math.floor(nowSeconds - data.currentTime);
-        endTimestamp = Math.floor(nowSeconds + remainingSeconds);
+        const start = Math.floor(nowSeconds - data.currentTime);
+        const end = Math.floor(nowSeconds + remainingSeconds);
+        this.lastTimestamps = { start, end };
+        timestamps = { start, end };
+      } else {
+        if (this.lastTimestamps) {
+          const duration = this.lastTimestamps.end - this.lastTimestamps.start;
+          const start = Date.now() - duration * 1000000;
+          const end = start + duration;
+          timestamps = { start, end };
+        } else {
+          const start = Date.now() - 817_000 * 10;
+          const end = start + 817_000;
+          timestamps = { start, end };
+        }
       }
 
       let largeImage = data.imageUrl;
@@ -164,17 +177,9 @@ export class DiscordBridge {
           small_image: smallImage,
           small_text: isPlaying ? 'Netflix' : 'Paused'
         },
+        timestamps,
         instance: false
       };
-
-      if (isPlaying && startTimestamp && endTimestamp) {
-        activity.timestamps = {
-          start: startTimestamp,
-          end: endTimestamp
-        };
-      } else {
-        (activity as any).timestamps = null;
-      }
 
       if (data.url && (data.url.startsWith('http://') || data.url.startsWith('https://'))) {
         activity.buttons = [
