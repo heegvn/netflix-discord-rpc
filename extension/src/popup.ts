@@ -8,60 +8,73 @@ class PopupController {
   private mediaSubtitle = document.getElementById('mediaSubtitle') as HTMLElement | null;
   private helpSection = document.getElementById('helpSection') as HTMLElement | null;
   private refreshBtn = document.getElementById('refreshBtn') as HTMLButtonElement | null;
+  private pollTimer: number | null = null;
 
   constructor() {
     this.initListeners();
     this.loadState();
-    this.pingBackground();
+    this.checkBridgeStatus();
+    this.startPolling();
   }
 
   private initListeners() {
     this.rpcToggle?.addEventListener('change', () => {
       const enabled = this.rpcToggle?.checked ?? true;
       chrome.storage.local.set({ rpcEnabled: enabled });
+      if (!enabled) {
+        fetch('http://127.0.0.1:7777/clear', { method: 'POST' }).catch(() => {});
+      }
     });
 
     this.refreshBtn?.addEventListener('click', () => {
-      this.pingBackground();
-    });
-
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local') {
-        if (changes.bridgeConnected !== undefined) {
-          this.setBridgeConnected(changes.bridgeConnected.newValue === true);
-        }
-        if (changes.discordConnected !== undefined) {
-          this.setDiscordConnected(changes.discordConnected.newValue === true);
-        }
-        if (changes.currentMedia !== undefined) {
-          this.renderMedia(changes.currentMedia.newValue as NetflixPresenceData | null);
-        }
-      }
+      this.checkBridgeStatus();
     });
   }
 
   private loadState() {
-    chrome.storage.local.get(['rpcEnabled', 'bridgeConnected', 'discordConnected', 'currentMedia'], (result) => {
+    chrome.storage.local.get(['rpcEnabled', 'currentMedia'], (result) => {
       if (this.rpcToggle) {
         this.rpcToggle.checked = result.rpcEnabled !== false;
       }
-      this.setBridgeConnected(result.bridgeConnected === true);
-      this.setDiscordConnected(result.discordConnected === true);
-      this.renderMedia(result.currentMedia as NetflixPresenceData | null);
+      if (result.currentMedia) {
+        this.renderMedia(result.currentMedia as NetflixPresenceData);
+      }
     });
   }
 
-  private pingBackground() {
+  private startPolling() {
+    this.pollTimer = window.setInterval(() => {
+      this.checkBridgeStatus();
+    }, 2000);
+  }
+
+  private async checkBridgeStatus() {
     try {
-      chrome.runtime.sendMessage({ type: 'PING' }, (response) => {
-        if (chrome.runtime.lastError) {
-          this.setBridgeConnected(false);
-          return;
-        }
-        if (response && response.connected !== undefined) {
-          this.setBridgeConnected(response.connected === true);
-        }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+      const res = await fetch('http://127.0.0.1:7777/status', {
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        this.setBridgeConnected(true);
+        this.setDiscordConnected(data.discordConnected === true);
+
+        if (data.currentMedia) {
+          this.renderMedia(data.currentMedia as NetflixPresenceData);
+        } else {
+          chrome.storage.local.get(['currentMedia'], (res) => {
+            if (res.currentMedia) {
+              this.renderMedia(res.currentMedia as NetflixPresenceData);
+            }
+          });
+        }
+      } else {
+        this.setBridgeConnected(false);
+      }
     } catch {
       this.setBridgeConnected(false);
     }

@@ -26,11 +26,12 @@ const server = http.createServer((req, res) => {
 
   if (req.url === '/status' || req.url === '/') {
     const status = discord.getStatus();
-    const response: BridgeStatusResponse = {
+    const response = {
       type: 'STATUS',
       discordConnected: status.isConnected,
       activePresence: status.hasActivePresence,
-      clientCount: activeClients.size
+      clientCount: activeClients.size,
+      currentMedia: discord.getLastData()
     };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(response, null, 2));

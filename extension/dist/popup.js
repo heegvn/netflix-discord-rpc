@@ -6,54 +6,66 @@ class PopupController {
     mediaSubtitle = document.getElementById('mediaSubtitle');
     helpSection = document.getElementById('helpSection');
     refreshBtn = document.getElementById('refreshBtn');
+    pollTimer = null;
     constructor() {
         this.initListeners();
         this.loadState();
-        this.pingBackground();
+        this.checkBridgeStatus();
+        this.startPolling();
     }
     initListeners() {
         this.rpcToggle?.addEventListener('change', () => {
             const enabled = this.rpcToggle?.checked ?? true;
             chrome.storage.local.set({ rpcEnabled: enabled });
+            if (!enabled) {
+                fetch('http://127.0.0.1:7777/clear', { method: 'POST' }).catch(() => { });
+            }
         });
         this.refreshBtn?.addEventListener('click', () => {
-            this.pingBackground();
-        });
-        chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === 'local') {
-                if (changes.bridgeConnected !== undefined) {
-                    this.setBridgeConnected(changes.bridgeConnected.newValue === true);
-                }
-                if (changes.discordConnected !== undefined) {
-                    this.setDiscordConnected(changes.discordConnected.newValue === true);
-                }
-                if (changes.currentMedia !== undefined) {
-                    this.renderMedia(changes.currentMedia.newValue);
-                }
-            }
+            this.checkBridgeStatus();
         });
     }
     loadState() {
-        chrome.storage.local.get(['rpcEnabled', 'bridgeConnected', 'discordConnected', 'currentMedia'], (result) => {
+        chrome.storage.local.get(['rpcEnabled', 'currentMedia'], (result) => {
             if (this.rpcToggle) {
                 this.rpcToggle.checked = result.rpcEnabled !== false;
             }
-            this.setBridgeConnected(result.bridgeConnected === true);
-            this.setDiscordConnected(result.discordConnected === true);
-            this.renderMedia(result.currentMedia);
+            if (result.currentMedia) {
+                this.renderMedia(result.currentMedia);
+            }
         });
     }
-    pingBackground() {
+    startPolling() {
+        this.pollTimer = window.setInterval(() => {
+            this.checkBridgeStatus();
+        }, 2000);
+    }
+    async checkBridgeStatus() {
         try {
-            chrome.runtime.sendMessage({ type: 'PING' }, (response) => {
-                if (chrome.runtime.lastError) {
-                    this.setBridgeConnected(false);
-                    return;
-                }
-                if (response && response.connected !== undefined) {
-                    this.setBridgeConnected(response.connected === true);
-                }
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1500);
+            const res = await fetch('http://127.0.0.1:7777/status', {
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+                const data = await res.json();
+                this.setBridgeConnected(true);
+                this.setDiscordConnected(data.discordConnected === true);
+                if (data.currentMedia) {
+                    this.renderMedia(data.currentMedia);
+                }
+                else {
+                    chrome.storage.local.get(['currentMedia'], (res) => {
+                        if (res.currentMedia) {
+                            this.renderMedia(res.currentMedia);
+                        }
+                    });
+                }
+            }
+            else {
+                this.setBridgeConnected(false);
+            }
         }
         catch {
             this.setBridgeConnected(false);

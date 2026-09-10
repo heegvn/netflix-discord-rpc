@@ -131,6 +131,10 @@ export class DiscordBridge {
     }
   }
 
+  public getLastData(): NetflixPresenceData | null {
+    return this.lastData;
+  }
+
   public getStatus(): { isConnected: boolean; hasActivePresence: boolean; clientId: string } {
     return {
       isConnected: this.client.connected,
