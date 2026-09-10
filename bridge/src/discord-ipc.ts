@@ -28,6 +28,7 @@ export interface DiscordAssets {
 }
 
 export interface DiscordActivityPayload {
+  type?: number;
   state?: string;
   details?: string;
   timestamps?: DiscordTimestamps;

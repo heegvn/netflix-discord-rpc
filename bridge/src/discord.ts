@@ -130,16 +130,16 @@ export class DiscordBridge {
         stateText += ' (Paused)';
       }
 
-      const now = Date.now();
+      const nowSeconds = Math.floor(Date.now() / 1000);
       const isPlaying = data.status === 'PLAYING';
 
       let startTimestamp: number | undefined = undefined;
       let endTimestamp: number | undefined = undefined;
 
       if (isPlaying && data.duration > 0 && data.currentTime >= 0) {
-        const remainingSeconds = Math.max(0, data.duration - data.currentTime);
-        startTimestamp = Math.floor(now - (data.currentTime * 1000));
-        endTimestamp = Math.floor(now + (remainingSeconds * 1000));
+        const remainingSeconds = Math.max(0, Math.floor(data.duration - data.currentTime));
+        startTimestamp = Math.floor(nowSeconds - data.currentTime);
+        endTimestamp = Math.floor(nowSeconds + remainingSeconds);
       }
 
       let largeImage = data.imageUrl;
@@ -152,6 +152,7 @@ export class DiscordBridge {
       const smallImage = 'https://cdn.rcd.gg/PreMiD/websites/N/Netflix/assets/1.png';
 
       const activity: DiscordActivityPayload = {
+        type: 3,
         details: detailsText.slice(0, 128),
         state: stateText.slice(0, 128),
         assets: {
