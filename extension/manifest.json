@@ -20,13 +20,12 @@
   "permissions": [
     "storage"
   ],
-  "background": {
-    "service_worker": "dist/background.js"
-  },
   "host_permissions": [
     "*://*.netflix.com/*",
     "http://127.0.0.1:7777/*",
-    "ws://127.0.0.1:7777/*"
+    "http://localhost:7777/*",
+    "ws://127.0.0.1:7777/*",
+    "ws://localhost:7777/*"
   ],
   "content_scripts": [
     {

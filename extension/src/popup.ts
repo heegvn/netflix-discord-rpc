@@ -22,7 +22,7 @@ class PopupController {
       const enabled = this.rpcToggle?.checked ?? true;
       chrome.storage.local.set({ rpcEnabled: enabled });
       if (!enabled) {
-        fetch('http://127.0.0.1:7777/clear', { method: 'POST' }).catch(() => {});
+        this.fetchWithFallback('/clear', { method: 'POST' }).catch(() => {});
       }
     });
 
@@ -45,20 +45,36 @@ class PopupController {
   private startPolling() {
     this.pollTimer = window.setInterval(() => {
       this.checkBridgeStatus();
-    }, 2000);
+    }, 2500);
+  }
+
+  private async fetchWithFallback(path: string, options?: RequestInit): Promise<Response | null> {
+    const urls = [
+      `http://127.0.0.1:7777${path}`,
+      `http://localhost:7777${path}`
+    ];
+
+    for (const url of urls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          return res;
+        }
+      } catch (err) {
+        console.warn(`[Popup] Failed to fetch ${url}:`, err);
+      }
+    }
+    return null;
   }
 
   private async checkBridgeStatus() {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
+      const res = await this.fetchWithFallback('/status');
 
-      const res = await fetch('http://127.0.0.1:7777/status', {
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json();
         this.setBridgeConnected(true);
         this.setDiscordConnected(data.discordConnected === true);
@@ -66,16 +82,17 @@ class PopupController {
         if (data.currentMedia) {
           this.renderMedia(data.currentMedia as NetflixPresenceData);
         } else {
-          chrome.storage.local.get(['currentMedia'], (res) => {
-            if (res.currentMedia) {
-              this.renderMedia(res.currentMedia as NetflixPresenceData);
+          chrome.storage.local.get(['currentMedia'], (stored) => {
+            if (stored.currentMedia) {
+              this.renderMedia(stored.currentMedia as NetflixPresenceData);
             }
           });
         }
       } else {
         this.setBridgeConnected(false);
       }
-    } catch {
+    } catch (err) {
+      console.error('[Popup] checkBridgeStatus exception:', err);
       this.setBridgeConnected(false);
     }
   }

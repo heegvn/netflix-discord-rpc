@@ -15,6 +15,7 @@ class NetflixScraper {
   private showInfoCache: Map<string, CachedShowInfo> = new Map();
 
   constructor() {
+    console.log('[Netflix RPC] Extension content script initialized on Netflix!');
     this.initSettings();
     this.startWatcher();
   }
@@ -36,26 +37,40 @@ class NetflixScraper {
     });
   }
 
+  private async postToBridge(path: string, body?: any) {
+    const urls = [
+      `http://127.0.0.1:7777${path}`,
+      `http://localhost:7777${path}`
+    ];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (res.ok) {
+          return true;
+        }
+      } catch {}
+    }
+    return false;
+  }
+
   private sendMessage(msg: BridgeMessage) {
     if (msg.type === 'UPDATE_PRESENCE' && msg.data) {
-      fetch('http://127.0.0.1:7777/activity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(msg.data)
-      }).catch(() => {});
+      console.log('[Netflix RPC] Sending presence:', msg.data.title, msg.data.status);
+      this.postToBridge('/activity', msg.data);
 
       chrome.storage.local.set({
         currentMedia: msg.data,
         bridgeConnected: true
       });
     } else if (msg.type === 'CLEAR_PRESENCE') {
-      fetch('http://127.0.0.1:7777/clear', { method: 'POST' }).catch(() => {});
+      this.postToBridge('/clear');
       chrome.storage.local.set({ currentMedia: null });
     }
-
-    try {
-      chrome.runtime.sendMessage(msg);
-    } catch {}
   }
 
   private sendClearPresence() {
@@ -99,6 +114,7 @@ class NetflixScraper {
     const video = document.querySelector('video') as HTMLVideoElement | null;
     if (video && video !== this.videoElement) {
       this.videoElement = video;
+      console.log('[Netflix RPC] Video element found!');
       video.addEventListener('play', () => this.checkPlayback());
       video.addEventListener('pause', () => this.checkPlayback());
       video.addEventListener('ended', () => this.sendClearPresence());

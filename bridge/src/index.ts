@@ -146,10 +146,10 @@ wss.on('connection', (ws) => {
   });
 });
 
-server.listen(PORT, HOST, async () => {
+server.listen(PORT, '0.0.0.0', async () => {
   console.log('====================================================');
-  console.log(`🚀 Netflix Discord RPC Bridge running on http://${HOST}:${PORT}`);
-  console.log(`📡 Local WebSocket listening on ws://${HOST}:${PORT}`);
+  console.log(`🚀 Netflix Discord RPC Bridge running on port ${PORT}`);
+  console.log(`📡 Local server listening on http://127.0.0.1:${PORT} and http://localhost:${PORT}`);
   console.log('====================================================');
 
   await discord.connect();
