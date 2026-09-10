@@ -3,6 +3,7 @@ class NetflixScraper {
     lastStatus = 'IDLE';
     checkInterval = null;
     videoElement = null;
+    showInfoCache = new Map();
     constructor() {
         this.initSettings();
         this.startWatcher();
@@ -24,6 +25,21 @@ class NetflixScraper {
         });
     }
     sendMessage(msg) {
+        if (msg.type === 'UPDATE_PRESENCE' && msg.data) {
+            fetch('http://127.0.0.1:7777/activity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(msg.data)
+            }).catch(() => { });
+            chrome.storage.local.set({
+                currentMedia: msg.data,
+                bridgeConnected: true
+            });
+        }
+        else if (msg.type === 'CLEAR_PRESENCE') {
+            fetch('http://127.0.0.1:7777/clear', { method: 'POST' }).catch(() => { });
+            chrome.storage.local.set({ currentMedia: null });
+        }
         try {
             chrome.runtime.sendMessage(msg);
         }
@@ -36,7 +52,7 @@ class NetflixScraper {
     startWatcher() {
         this.checkInterval = window.setInterval(() => {
             this.checkPlayback();
-        }, 2500);
+        }, 2000);
         let currentHref = location.href;
         const observer = new MutationObserver(() => {
             if (location.href !== currentHref) {
@@ -72,6 +88,7 @@ class NetflixScraper {
         }
     }
     parseMediaInfo() {
+        const watchKey = window.location.pathname;
         let rawTitle = '';
         let rawEpisodeDetail = '';
         const titleContainer = document.querySelector('[data-uia="video-title"]');
@@ -92,17 +109,20 @@ class NetflixScraper {
             }
         }
         if (!rawTitle) {
-            const altTitle = document.querySelector('.video-title, .ellipsize-text');
+            const altTitle = document.querySelector('.video-title, .ellipsize-text, [class*="VideoTitle"], [class*="video-title"]');
             if (altTitle && altTitle.textContent) {
                 rawTitle = altTitle.textContent.trim();
             }
         }
         if (!rawTitle) {
             const docTitle = document.title || '';
-            const cleaned = docTitle.replace(/\s*[-|]\s*Netflix.*$/i, '').trim();
+            const cleaned = docTitle.replace(/\s*[-|•]\s*Netflix.*$/i, '').replace(/^Netflix\s*[-|•]\s*/i, '').trim();
             if (cleaned) {
                 rawTitle = cleaned;
             }
+        }
+        if (!rawTitle && this.showInfoCache.has(watchKey)) {
+            return this.showInfoCache.get(watchKey);
         }
         if (!rawTitle) {
             rawTitle = 'Netflix Video';
@@ -134,12 +154,16 @@ class NetflixScraper {
         if (rawEpisodeDetail && !episodeTitle) {
             episodeTitle = rawEpisodeDetail;
         }
-        return {
+        const info = {
             title: mainTitle,
             season,
             episode,
             episodeTitle
         };
+        if (mainTitle !== 'Netflix Video') {
+            this.showInfoCache.set(watchKey, info);
+        }
+        return info;
     }
     checkPlayback() {
         if (!this.isEnabled) {
@@ -155,8 +179,8 @@ class NetflixScraper {
         if (!video) {
             return;
         }
-        const isPlaying = !video.paused && !video.ended && video.readyState > 2;
-        const status = isPlaying ? 'PLAYING' : 'PAUSED';
+        const isPaused = video.paused || video.ended;
+        const status = isPaused ? 'PAUSED' : 'PLAYING';
         const info = this.parseMediaInfo();
         const data = {
             status,

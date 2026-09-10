@@ -2,7 +2,7 @@ import http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
 import { DiscordBridge } from './discord.js';
-import { BridgeMessage, BridgeStatusResponse } from './types.js';
+import { BridgeMessage, BridgeStatusResponse, NetflixPresenceData } from './types.js';
 
 dotenv.config();
 
@@ -34,6 +34,35 @@ const server = http.createServer((req, res) => {
     };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(response, null, 2));
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/activity') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body) as NetflixPresenceData;
+        resetIdleTimeout();
+        await discord.updatePresence(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/clear') {
+    if (idleTimeout) clearTimeout(idleTimeout);
+    req.on('data', () => {});
+    req.on('end', async () => {
+      await discord.clearPresence();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    });
     return;
   }
 

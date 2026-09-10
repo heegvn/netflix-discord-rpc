@@ -1,10 +1,18 @@
 import { BridgeMessage, NetflixPresenceData, PlaybackStatus } from './types.js';
 
+interface CachedShowInfo {
+  title: string;
+  season?: number;
+  episode?: number;
+  episodeTitle?: string;
+}
+
 class NetflixScraper {
   private isEnabled: boolean = true;
   private lastStatus: PlaybackStatus = 'IDLE';
   private checkInterval: number | null = null;
   private videoElement: HTMLVideoElement | null = null;
+  private showInfoCache: Map<string, CachedShowInfo> = new Map();
 
   constructor() {
     this.initSettings();
@@ -29,6 +37,22 @@ class NetflixScraper {
   }
 
   private sendMessage(msg: BridgeMessage) {
+    if (msg.type === 'UPDATE_PRESENCE' && msg.data) {
+      fetch('http://127.0.0.1:7777/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(msg.data)
+      }).catch(() => {});
+
+      chrome.storage.local.set({
+        currentMedia: msg.data,
+        bridgeConnected: true
+      });
+    } else if (msg.type === 'CLEAR_PRESENCE') {
+      fetch('http://127.0.0.1:7777/clear', { method: 'POST' }).catch(() => {});
+      chrome.storage.local.set({ currentMedia: null });
+    }
+
     try {
       chrome.runtime.sendMessage(msg);
     } catch {}
@@ -42,7 +66,7 @@ class NetflixScraper {
   private startWatcher() {
     this.checkInterval = window.setInterval(() => {
       this.checkPlayback();
-    }, 2500);
+    }, 2000);
 
     let currentHref = location.href;
     const observer = new MutationObserver(() => {
@@ -82,7 +106,9 @@ class NetflixScraper {
     }
   }
 
-  private parseMediaInfo(): { title: string; season?: number; episode?: number; episodeTitle?: string } {
+  private parseMediaInfo(): CachedShowInfo {
+    const watchKey = window.location.pathname;
+
     let rawTitle = '';
     let rawEpisodeDetail = '';
 
@@ -104,7 +130,7 @@ class NetflixScraper {
     }
 
     if (!rawTitle) {
-      const altTitle = document.querySelector('.video-title, .ellipsize-text');
+      const altTitle = document.querySelector('.video-title, .ellipsize-text, [class*="VideoTitle"], [class*="video-title"]');
       if (altTitle && altTitle.textContent) {
         rawTitle = altTitle.textContent.trim();
       }
@@ -112,10 +138,14 @@ class NetflixScraper {
 
     if (!rawTitle) {
       const docTitle = document.title || '';
-      const cleaned = docTitle.replace(/\s*[-|]\s*Netflix.*$/i, '').trim();
+      const cleaned = docTitle.replace(/\s*[-|•]\s*Netflix.*$/i, '').replace(/^Netflix\s*[-|•]\s*/i, '').trim();
       if (cleaned) {
         rawTitle = cleaned;
       }
+    }
+
+    if (!rawTitle && this.showInfoCache.has(watchKey)) {
+      return this.showInfoCache.get(watchKey)!;
     }
 
     if (!rawTitle) {
@@ -148,12 +178,18 @@ class NetflixScraper {
       episodeTitle = rawEpisodeDetail;
     }
 
-    return {
+    const info: CachedShowInfo = {
       title: mainTitle,
       season,
       episode,
       episodeTitle
     };
+
+    if (mainTitle !== 'Netflix Video') {
+      this.showInfoCache.set(watchKey, info);
+    }
+
+    return info;
   }
 
   private checkPlayback() {
@@ -173,8 +209,8 @@ class NetflixScraper {
       return;
     }
 
-    const isPlaying = !video.paused && !video.ended && video.readyState > 2;
-    const status: PlaybackStatus = isPlaying ? 'PLAYING' : 'PAUSED';
+    const isPaused = video.paused || video.ended;
+    const status: PlaybackStatus = isPaused ? 'PAUSED' : 'PLAYING';
 
     const info = this.parseMediaInfo();
 
