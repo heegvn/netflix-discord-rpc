@@ -142,6 +142,10 @@ export class DiscordBridge {
           start: nowSeconds - cur,
           end: nowSeconds + rem
         };
+      } else if (!isPlaying) {
+        const start = Date.now() - 817_000 * 10;
+        const end = start + 817_000;
+        timestamps = { start, end };
       }
 
       let largeImage = data.imageUrl;
@@ -163,12 +167,9 @@ export class DiscordBridge {
           small_image: smallImage,
           small_text: isPlaying ? 'Netflix' : 'Paused'
         },
+        timestamps,
         instance: false
       };
-
-      if (isPlaying && timestamps) {
-        activity.timestamps = timestamps;
-      }
 
       if (data.url && (data.url.startsWith('http://') || data.url.startsWith('https://'))) {
         activity.buttons = [
