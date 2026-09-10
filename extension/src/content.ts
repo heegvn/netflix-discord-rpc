@@ -143,7 +143,7 @@ class NetflixScraper {
         let seasonNum: number | undefined;
         let epNum: number | undefined;
         let epTitle: string | undefined;
-        let imageUrl: string | undefined = video.boxart?.[0]?.url || video.storyart?.[0]?.url;
+        let imageUrl: string | undefined = undefined;
 
         if (video.type === 'show' && video.seasons) {
           const currentEpId = video.currentEpisode;
@@ -156,11 +156,16 @@ class NetflixScraper {
             if (currentEp) {
               epNum = currentEp.seq;
               epTitle = currentEp.title;
-              if (!imageUrl && currentEp.thumbs?.[0]?.url) {
-                imageUrl = currentEp.thumbs[0].url;
+              const thumb = currentEp.thumbs?.[currentEp.thumbs.length - 1]?.url || currentEp.thumbs?.[0]?.url;
+              if (thumb) {
+                imageUrl = thumb;
               }
             }
           }
+        }
+
+        if (!imageUrl) {
+          imageUrl = video.boxart?.[0]?.url || video.storyart?.[0]?.url;
         }
 
         if (!imageUrl) {
