@@ -47,6 +47,12 @@ class NetflixScraper {
         return false;
     }
     sendMessage(msg) {
+        try {
+            chrome.runtime.sendMessage(msg, () => {
+                if (chrome.runtime.lastError) { }
+            });
+        }
+        catch { }
         if (msg.type === 'UPDATE_PRESENCE' && msg.data) {
             this.postToBridge('/activity', msg.data);
             chrome.storage.local.set({
